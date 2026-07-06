@@ -68,8 +68,11 @@ MES.Domain → （无项目引用）
 
 | 实体 | 说明 |
 | --- | --- |
-| `WorkOrder` | 工单：编号、产品、计划数量、状态 |
-| `SerialUnit` | SN 实例：当前工站、过站/测试状态 |
+| `WorkOrder` | 工单：编号、产品、计划数量、状态、绑定测试流程 |
+| `Station` | 工站：编码、线体、是否测试站 |
+| `TestFlow` | 测试流程：产品绑定、版本、启用状态、有序步骤 |
+| `RouteStep` | 流程步骤：序号、工站、步骤类型（过站/测试） |
+| `SerialUnit` | SN 实例：当前工站、过站/测试状态、已完成/待测步骤序号 |
 | `TestRecord` | 测试记录：SN + 工站 + 批次，支持幂等 |
 | `TraceEvent` | 追溯事件：过站、测试上传等时间线 |
 
@@ -91,7 +94,9 @@ MES.Domain → （无项目引用）
 | --- | --- |
 | `MES-0000` | 成功 |
 | `MES-4001` | 参数非法 |
-| `MES-4002` | 业务不匹配（工单不存在、SN 未进站等） |
+| `MES-4002` | 业务不匹配（工单不存在、SN 未进站、工序跳站/漏站、失败品未处置） |
+| `MES-4003` | 工站未授权（工站不存在或与步骤类型不符） |
+| `MES-4004` | 产品无启用测试流程 |
 | `MES-4091` | 重复提交（工单重复、测试结果重复上传） |
 
 ## API Conventions
@@ -101,9 +106,15 @@ MES.Domain → （无项目引用）
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | `/api/work-orders` | 创建工单 |
-| POST | `/api/station/pass` | SN 过站 |
-| POST | `/api/test-results` | 上传测试结果 |
-| GET | `/api/traceability/{sn}` | SN 追溯（时间线 + 测试记录） |
+| POST | `/api/stations` | 创建工站 |
+| GET | `/api/stations` | 工站列表 |
+| POST | `/api/test-flows` | 创建测试流程（含步骤） |
+| GET | `/api/test-flows` | 测试流程列表（可选 `productCode` 过滤） |
+| GET | `/api/test-flows/{flowCode}` | 测试流程详情 |
+| POST | `/api/test-flows/{flowCode}/activate` | 启用流程（同产品其余置为 inactive） |
+| POST | `/api/station/pass` | SN 过站（校验工序顺序与工站授权） |
+| POST | `/api/test-results` | 上传测试结果（须先过站至测试站） |
+| GET | `/api/traceability/{sn}` | SN 追溯（时间线 + 测试记录 + 流程进度） |
 
 扩展 API 时遵循：
 
@@ -114,10 +125,9 @@ MES.Domain → （无项目引用）
 
 ## Testing Instructions
 
-尚无自动化测试。新增测试时：
+测试项目：`tests/MES.Domain.Tests`
 
-- 测试项目命名：`MES.{Layer}.Tests` 或 `tests/MES.Application.Tests`
-- 优先覆盖：幂等去重、SN 状态流转、工序顺序校验（M2 实现后）
+- 优先覆盖：幂等去重、SN 状态流转、工序顺序校验、测试站 PASS 门控
 - 仓储层用内存实现或 Testcontainers（接入数据库后）
 - 运行：`dotnet test src/MES.sln`
 
@@ -128,7 +138,9 @@ MES.Domain → （无项目引用）
 | 能力 | 状态 |
 | --- | --- |
 | 工单创建、过站、测试上传、追溯查询 | ✅ 内存实现 |
-| 工序顺序 / 工站权限校验 | ⏳ M2 |
+| 测试流程定义（Test Flow CRUD + 激活） | ✅ 内存实现 |
+| 工站主数据管理 | ✅ 内存实现 |
+| 工序顺序 / 工站权限校验 | ✅ 内存实现 |
 | EF Core 持久化 | ⏳ 待实现 |
 | JWT + RBAC | ⏳ 待实现 |
 | RabbitMQ 事件发布 | ⏳ 待实现 |

@@ -28,3 +28,20 @@ public interface ITraceEventRepository
     Task AddAsync(TraceEvent traceEvent, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TraceEvent>> GetBySnAsync(string sn, CancellationToken cancellationToken = default);
 }
+
+public interface IStationRepository
+{
+    Task<Station?> GetByCodeAsync(string stationCode, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Station>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task AddAsync(Station station, CancellationToken cancellationToken = default);
+}
+
+public interface ITestFlowRepository
+{
+    Task<TestFlow?> GetByCodeAsync(string flowCode, CancellationToken cancellationToken = default);
+    Task<TestFlow?> GetActiveByProductCodeAsync(string productCode, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TestFlow>> GetAllAsync(string? productCode, CancellationToken cancellationToken = default);
+    Task AddAsync(TestFlow testFlow, CancellationToken cancellationToken = default);
+    Task UpdateAsync(TestFlow testFlow, CancellationToken cancellationToken = default);
+    Task DeactivateByProductCodeAsync(string productCode, string exceptFlowCode, CancellationToken cancellationToken = default);
+}

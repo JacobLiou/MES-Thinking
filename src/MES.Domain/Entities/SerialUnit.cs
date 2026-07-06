@@ -9,5 +9,7 @@ public sealed class SerialUnit
     public required string CurrentStationCode { get; set; }
     public SerialStatus Status { get; set; } = SerialStatus.Created;
     public bool? LastTestPassed { get; set; }
+    public int? CompletedStepSequence { get; set; }
+    public int? PendingStepSequence { get; set; }
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

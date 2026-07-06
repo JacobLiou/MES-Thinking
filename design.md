@@ -196,12 +196,17 @@ sequenceDiagram
 
 ## 8. API 契约（首期）
 
-### 8.1 工单与工站
+### 8.1 工单、工站与测试流程
 
 - POST /api/work-orders
 - POST /api/work-orders/{no}/release
 - POST /api/work-orders/{no}/start
+- POST /api/stations
 - GET /api/stations
+- POST /api/test-flows
+- GET /api/test-flows
+- GET /api/test-flows/{flowCode}
+- POST /api/test-flows/{flowCode}/activate
 - POST /api/station/pass
 
 ### 8.2 测试与追溯
@@ -225,6 +230,7 @@ sequenceDiagram
   - MES-4001 参数非法
   - MES-4002 工序不匹配
   - MES-4003 工站未授权
+  - MES-4004 产品无启用测试流程
   - MES-4091 重复上传
   - MES-5001 系统异常
 

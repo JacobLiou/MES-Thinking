@@ -1,6 +1,7 @@
 using MES.Application.Contracts;
 using MES.Domain.Entities;
 using MES.Domain.Enums;
+using MES.Domain.Services;
 
 namespace MES.Application.Services;
 
@@ -10,17 +11,23 @@ public sealed class MesExecutionService : IMesExecutionService
     private readonly ISerialUnitRepository _serialUnitRepository;
     private readonly ITestRecordRepository _testRecordRepository;
     private readonly ITraceEventRepository _traceEventRepository;
+    private readonly IStationRepository _stationRepository;
+    private readonly ITestFlowRepository _testFlowRepository;
 
     public MesExecutionService(
         IWorkOrderRepository workOrderRepository,
         ISerialUnitRepository serialUnitRepository,
         ITestRecordRepository testRecordRepository,
-        ITraceEventRepository traceEventRepository)
+        ITraceEventRepository traceEventRepository,
+        IStationRepository stationRepository,
+        ITestFlowRepository testFlowRepository)
     {
         _workOrderRepository = workOrderRepository;
         _serialUnitRepository = serialUnitRepository;
         _testRecordRepository = testRecordRepository;
         _traceEventRepository = traceEventRepository;
+        _stationRepository = stationRepository;
+        _testFlowRepository = testFlowRepository;
     }
 
     public async Task<CommandResult> CreateWorkOrderAsync(CreateWorkOrderRequest request, CancellationToken cancellationToken = default)
@@ -36,12 +43,15 @@ public sealed class MesExecutionService : IMesExecutionService
             return Failed("MES-4091", "Work order already exists.");
         }
 
+        var activeFlow = await _testFlowRepository.GetActiveByProductCodeAsync(request.ProductCode, cancellationToken);
+
         var workOrder = new WorkOrder
         {
             WorkOrderNo = request.WorkOrderNo,
             ProductCode = request.ProductCode,
             PlannedQty = request.PlannedQty,
-            Status = WorkOrderStatus.Released
+            Status = WorkOrderStatus.Released,
+            TestFlowCode = activeFlow?.FlowCode
         };
 
         await _workOrderRepository.AddAsync(workOrder, cancellationToken);
@@ -64,6 +74,12 @@ public sealed class MesExecutionService : IMesExecutionService
             return Failed("MES-4002", "Work order does not exist.");
         }
 
+        var flow = await ResolveTestFlowAsync(workOrder, cancellationToken);
+        if (flow is null)
+        {
+            return Failed("MES-4004", "No active test flow is configured for this product.");
+        }
+
         if (workOrder.Status == WorkOrderStatus.Released)
         {
             workOrder.Status = WorkOrderStatus.InProgress;
@@ -71,23 +87,35 @@ public sealed class MesExecutionService : IMesExecutionService
         }
 
         var serialUnit = await _serialUnitRepository.GetBySnAsync(request.Sn, cancellationToken);
+        var stationsByCode = await BuildStationLookupAsync(cancellationToken);
+
+        var validation = TestFlowValidator.ValidatePassStation(
+            flow,
+            stationsByCode,
+            serialUnit,
+            request.StationCode);
+
+        if (!validation.IsValid)
+        {
+            return Failed(validation.ErrorCode!, validation.ErrorMessage!);
+        }
+
+        var expectedNext = flow.GetNextStep(serialUnit?.CompletedStepSequence)!;
+
         if (serialUnit is null)
         {
             serialUnit = new SerialUnit
             {
                 Sn = request.Sn,
                 WorkOrderNo = request.WorkOrderNo,
-                CurrentStationCode = request.StationCode,
-                Status = SerialStatus.InProcess,
-                UpdatedAt = DateTimeOffset.UtcNow
+                CurrentStationCode = request.StationCode
             };
+            TestFlowValidator.ApplyPassStation(serialUnit, expectedNext);
             await _serialUnitRepository.AddAsync(serialUnit, cancellationToken);
         }
         else
         {
-            serialUnit.CurrentStationCode = request.StationCode;
-            serialUnit.Status = SerialStatus.InProcess;
-            serialUnit.UpdatedAt = DateTimeOffset.UtcNow;
+            TestFlowValidator.ApplyPassStation(serialUnit, expectedNext);
             await _serialUnitRepository.UpdateAsync(serialUnit, cancellationToken);
         }
 
@@ -97,7 +125,9 @@ public sealed class MesExecutionService : IMesExecutionService
             EventType = "StationPassed",
             StationCode = request.StationCode,
             OperatorId = request.OperatorId,
-            Message = "SN pass station accepted."
+            Message = expectedNext.StepType == StepType.TestRequired
+                ? "SN entered test station; awaiting test result."
+                : "SN pass station accepted."
         }, cancellationToken);
 
         return Success("Station pass accepted.");
@@ -129,6 +159,26 @@ public sealed class MesExecutionService : IMesExecutionService
             return Failed("MES-4002", "SN has not entered process.");
         }
 
+        var workOrder = await _workOrderRepository.GetByNoAsync(serialUnit.WorkOrderNo, cancellationToken);
+        if (workOrder is null)
+        {
+            return Failed("MES-4002", "Work order does not exist.");
+        }
+
+        var flow = await ResolveTestFlowAsync(workOrder, cancellationToken);
+        if (flow is null)
+        {
+            return Failed("MES-4004", "No active test flow is configured for this product.");
+        }
+
+        var validation = TestFlowValidator.ValidateTestUpload(flow, serialUnit, request.StationCode);
+        if (!validation.IsValid)
+        {
+            return Failed(validation.ErrorCode!, validation.ErrorMessage!);
+        }
+
+        var pendingStep = flow.GetStepBySequence(serialUnit.PendingStepSequence!.Value)!;
+
         var testRecord = new TestRecord
         {
             Sn = request.Sn,
@@ -141,10 +191,7 @@ public sealed class MesExecutionService : IMesExecutionService
         };
 
         await _testRecordRepository.AddAsync(testRecord, cancellationToken);
-
-        serialUnit.LastTestPassed = request.Passed;
-        serialUnit.Status = request.Passed ? SerialStatus.TestedPass : SerialStatus.TestedFail;
-        serialUnit.UpdatedAt = DateTimeOffset.UtcNow;
+        TestFlowValidator.ApplyTestResult(serialUnit, flow, pendingStep, request.Passed);
         await _serialUnitRepository.UpdateAsync(serialUnit, cancellationToken);
 
         await _traceEventRepository.AddAsync(new TraceEvent
@@ -172,6 +219,19 @@ public sealed class MesExecutionService : IMesExecutionService
             return null;
         }
 
+        TestFlow? flow = null;
+        string? nextExpectedStation = null;
+        var workOrder = await _workOrderRepository.GetByNoAsync(serialUnit.WorkOrderNo, cancellationToken);
+        if (workOrder is not null)
+        {
+            flow = await ResolveTestFlowAsync(workOrder, cancellationToken);
+            if (flow is not null)
+            {
+                var nextStep = flow.GetNextStep(serialUnit.CompletedStepSequence);
+                nextExpectedStation = nextStep?.StationCode;
+            }
+        }
+
         var timeline = await _traceEventRepository.GetBySnAsync(sn, cancellationToken);
         var testResults = await _testRecordRepository.GetBySnAsync(sn, cancellationToken);
 
@@ -181,6 +241,9 @@ public sealed class MesExecutionService : IMesExecutionService
             WorkOrderNo = serialUnit.WorkOrderNo,
             CurrentStationCode = serialUnit.CurrentStationCode,
             CurrentStatus = serialUnit.Status.ToString(),
+            ActiveFlowCode = flow?.FlowCode,
+            CompletedStepSequence = serialUnit.CompletedStepSequence,
+            NextExpectedStation = nextExpectedStation,
             Timeline = timeline
                 .OrderBy(x => x.OccurredAt)
                 .Select(x => new TraceTimelineItem
@@ -204,6 +267,26 @@ public sealed class MesExecutionService : IMesExecutionService
                 })
                 .ToList()
         };
+    }
+
+    private async Task<TestFlow?> ResolveTestFlowAsync(WorkOrder workOrder, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(workOrder.TestFlowCode))
+        {
+            var byCode = await _testFlowRepository.GetByCodeAsync(workOrder.TestFlowCode, cancellationToken);
+            if (byCode is not null)
+            {
+                return byCode;
+            }
+        }
+
+        return await _testFlowRepository.GetActiveByProductCodeAsync(workOrder.ProductCode, cancellationToken);
+    }
+
+    private async Task<Dictionary<string, Station>> BuildStationLookupAsync(CancellationToken cancellationToken)
+    {
+        var stations = await _stationRepository.GetAllAsync(cancellationToken);
+        return stations.ToDictionary(s => s.StationCode, StringComparer.OrdinalIgnoreCase);
     }
 
     private static CommandResult Success(string message) =>
