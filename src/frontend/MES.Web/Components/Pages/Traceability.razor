@@ -1,0 +1,104 @@
+@page "/traceability"
+@rendermode InteractiveServer
+@inject MesApiClient ApiClient
+@inject MessageService MessageService
+
+<PageTitle>追溯查询</PageTitle>
+
+<h3 class="page-title">SN 追溯查询</h3>
+
+<Card>
+    <BodyTemplate>
+        <div class="row g-3 align-items-end">
+            <div class="col-md-6">
+                <BootstrapInput @bind-Value="_sn" DisplayText="序列号 (SN)" ShowLabel="true"
+                                OnEnterAsync="@(async _ => await QueryAsync())" />
+            </div>
+            <div class="col-md-6">
+                <Button Color="Color.Primary" Icon="fa-solid fa-search" OnClick="QueryAsync" IsAsync="true">
+                    查询
+                </Button>
+            </div>
+        </div>
+    </BodyTemplate>
+</Card>
+
+@if (_trace is not null)
+{
+    <Card class="mt-3">
+        <HeaderTemplate>
+            <strong>SN 状态 — @_trace.Sn</strong>
+        </HeaderTemplate>
+        <BodyTemplate>
+            <div class="row">
+                <div class="col-md-3"><strong>工单:</strong> @_trace.WorkOrderNo</div>
+                <div class="col-md-3"><strong>当前工站:</strong> @_trace.CurrentStationCode</div>
+                <div class="col-md-3"><strong>状态:</strong> @_trace.CurrentStatus</div>
+                <div class="col-md-3"><strong>流程:</strong> @_trace.ActiveFlowCode</div>
+                <div class="col-md-3 mt-2"><strong>已完成步骤:</strong> @_trace.CompletedStepSequence</div>
+                <div class="col-md-3 mt-2"><strong>下一站:</strong> @_trace.NextExpectedStation</div>
+            </div>
+        </BodyTemplate>
+    </Card>
+
+    <Card class="mt-3">
+        <HeaderTemplate>
+            <strong>时间线</strong>
+        </HeaderTemplate>
+        <BodyTemplate>
+            <Table TItem="TraceTimelineItem" Items="_trace.Timeline" IsStriped="true" IsBordered="true">
+                <TableColumns>
+                    <TableColumn @bind-Field="@context.OccurredAt" FormatString="yyyy-MM-dd HH:mm:ss" />
+                    <TableColumn @bind-Field="@context.EventType" />
+                    <TableColumn @bind-Field="@context.StationCode" />
+                    <TableColumn @bind-Field="@context.OperatorId" />
+                    <TableColumn @bind-Field="@context.Message" />
+                </TableColumns>
+            </Table>
+        </BodyTemplate>
+    </Card>
+
+    <Card class="mt-3">
+        <HeaderTemplate>
+            <strong>测试记录</strong>
+        </HeaderTemplate>
+        <BodyTemplate>
+            <Table TItem="TestResultItem" Items="_trace.TestResults" IsStriped="true" IsBordered="true">
+                <TableColumns>
+                    <TableColumn @bind-Field="@context.TestedAt" FormatString="yyyy-MM-dd HH:mm:ss" />
+                    <TableColumn @bind-Field="@context.StationCode" />
+                    <TableColumn @bind-Field="@context.TestBatchId" />
+                    <TableColumn @bind-Field="@context.Passed" />
+                </TableColumns>
+            </Table>
+        </BodyTemplate>
+    </Card>
+}
+
+@code {
+    private string _sn = string.Empty;
+    private TraceabilityResponse? _trace;
+
+    private async Task QueryAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_sn))
+        {
+            await MessageService.Show(new MessageOption
+            {
+                Content = "请输入 SN",
+                Color = Color.Warning
+            });
+            return;
+        }
+
+        _trace = await ApiClient.GetTraceabilityAsync(_sn.Trim());
+        if (_trace is null)
+        {
+            await MessageService.Show(new MessageOption
+            {
+                Content = "未找到该 SN 的追溯记录",
+                Color = Color.Warning
+            });
+        }
+    }
+}

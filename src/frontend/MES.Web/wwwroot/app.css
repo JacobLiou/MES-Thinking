@@ -1,0 +1,22 @@
+.page-title {
+    margin-bottom: 1rem;
+}
+
+.status-ok {
+    color: #198754;
+    font-weight: 600;
+}
+
+.status-error {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.demo-steps {
+    line-height: 1.8;
+}
+
+.station-hint {
+    font-size: 0.9rem;
+    color: #6c757d;
+}

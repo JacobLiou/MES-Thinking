@@ -1,0 +1,76 @@
+@page "/work-orders"
+@rendermode InteractiveServer
+@inject MesApiClient ApiClient
+@inject MessageService MessageService
+
+<PageTitle>工单管理</PageTitle>
+
+<h3 class="page-title">工单管理</h3>
+
+<Card>
+    <HeaderTemplate>
+        <strong>创建工单</strong>
+    </HeaderTemplate>
+    <BodyTemplate>
+        <div class="row g-3">
+            <div class="col-md-4">
+                <BootstrapInput @bind-Value="_workOrderNo" DisplayText="工单号" ShowLabel="true" />
+            </div>
+            <div class="col-md-4">
+                <BootstrapInput @bind-Value="_productCode" DisplayText="产品型号" ShowLabel="true" />
+            </div>
+            <div class="col-md-4">
+                <BootstrapInputNumber @bind-Value="_plannedQty" DisplayText="计划数量" ShowLabel="true" />
+            </div>
+        </div>
+        <div class="mt-3">
+            <Button Color="Color.Primary" Icon="fa-solid fa-plus" OnClick="CreateWorkOrderAsync" IsAsync="true">
+                创建工单
+            </Button>
+        </div>
+        <p class="station-hint mt-2 mb-0">产品 <code>PCB-A</code> 已预置测试流程（ASSY → ICT → FCT）。</p>
+    </BodyTemplate>
+</Card>
+
+@if (_lastResult is not null)
+{
+    <Alert Color="@(_lastResult.Success ? Color.Success : Color.Danger)" class="mt-3">
+        <strong>@_lastResult.Code</strong> — @_lastResult.Message
+    </Alert>
+}
+
+@code {
+    private string _workOrderNo = "WO-DEMO-001";
+    private string _productCode = "PCB-A";
+    private int _plannedQty = 100;
+    private CommandResult? _lastResult;
+
+    private async Task CreateWorkOrderAsync()
+    {
+        _lastResult = await ApiClient.CreateWorkOrderAsync(new CreateWorkOrderRequest
+        {
+            WorkOrderNo = _workOrderNo.Trim(),
+            ProductCode = _productCode.Trim(),
+            PlannedQty = _plannedQty
+        });
+
+        if (_lastResult.Success)
+        {
+            await MessageService.Show(new MessageOption
+            {
+                Content = _lastResult.Message,
+                Icon = "fa-solid fa-circle-check",
+                Color = Color.Success
+            });
+        }
+        else
+        {
+            await MessageService.Show(new MessageOption
+            {
+                Content = $"{_lastResult.Code}: {_lastResult.Message}",
+                Icon = "fa-solid fa-circle-xmark",
+                Color = Color.Danger
+            });
+        }
+    }
+}

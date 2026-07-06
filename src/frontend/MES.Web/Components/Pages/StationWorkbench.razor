@@ -1,0 +1,290 @@
+@page "/station"
+@rendermode InteractiveServer
+@inject MesApiClient ApiClient
+@inject StationWorkbenchState State
+@inject MessageService MessageService
+
+<PageTitle>工站工作台</PageTitle>
+
+<h3 class="page-title">工站工作台</h3>
+
+@if (_loading)
+{
+    <p>加载工站数据...</p>
+}
+else
+{
+    <div class="row g-3">
+        <div class="col-lg-5">
+            <Card>
+                <HeaderTemplate>
+                    <strong>工站与扫码</strong>
+                </HeaderTemplate>
+                <BodyTemplate>
+                    <Select TValue="string" Value="State.SelectedStationCode" ValueChanged="OnStationChanged"
+                            Items="_stationItems" DisplayText="当前工站" ShowLabel="true" />
+                    @if (_selectedStation is not null)
+                    {
+                        <p class="station-hint mt-1">
+                            @_selectedStation.Name (@_selectedStation.LineCode)
+                            — @(_selectedStation.IsTestStation ? "测试站" : "过站站")
+                        </p>
+                    }
+
+                    <BootstrapInput @bind-Value="State.WorkOrderNo" DisplayText="工单号" ShowLabel="true" class="mt-2" />
+                    <BootstrapInput @bind-Value="State.OperatorId" DisplayText="操作员 ID" ShowLabel="true" class="mt-2" />
+                    <BootstrapInput @bind-Value="State.Sn" DisplayText="序列号 (SN)" ShowLabel="true" class="mt-2"
+                                    OnEnterAsync="@(async _ => await LoadTraceAsync())" />
+
+                    <div class="d-flex gap-2 flex-wrap mt-3">
+                        <Button Color="Color.Secondary" Icon="fa-solid fa-rotate" OnClick="LoadTraceAsync" IsAsync="true">
+                            查询 SN
+                        </Button>
+                        <Button Color="Color.Primary" Icon="fa-solid fa-right-to-bracket"
+                                OnClick="PassStationAsync" IsAsync="true" IsDisabled="@(!CanPassStation)">
+                            过站 / 进站
+                        </Button>
+                    </div>
+
+                    @if (_selectedStation?.IsTestStation == true)
+                    {
+                        <hr />
+                        <BootstrapInput @bind-Value="State.TestBatchId" DisplayText="测试批次号" ShowLabel="true" />
+                        <div class="d-flex gap-2 flex-wrap mt-2">
+                            <Button Color="Color.Success" Icon="fa-solid fa-check"
+                                    OnClick="@(() => UploadTestAsync(true))" IsAsync="true"
+                                    IsDisabled="@(!CanUploadTest)">
+                                模拟 PASS
+                            </Button>
+                            <Button Color="Color.Danger" Icon="fa-solid fa-xmark"
+                                    OnClick="@(() => UploadTestAsync(false))" IsAsync="true"
+                                    IsDisabled="@(!CanUploadTest)">
+                                模拟 FAIL
+                            </Button>
+                        </div>
+                        <p class="station-hint mt-2 mb-0">测试站须先「过站/进站」，再上传测试结果。</p>
+                    }
+                </BodyTemplate>
+            </Card>
+        </div>
+
+        <div class="col-lg-7">
+            <Card>
+                <HeaderTemplate>
+                    <strong>SN 流程进度</strong>
+                </HeaderTemplate>
+                <BodyTemplate>
+                    @if (_trace is null && string.IsNullOrWhiteSpace(State.Sn))
+                    {
+                        <p class="station-hint mb-0">扫描或输入 SN 后按回车查询。</p>
+                    }
+                    else if (_trace is null)
+                    {
+                        <p class="station-hint mb-0">SN 尚未进入流程，可在当前工站执行首次过站。</p>
+                        @if (_activeFlow is not null)
+                        {
+                            <FlowSteps Flow="_activeFlow" CompletedSequence="null" NextStation="@(_activeFlow.Steps.OrderBy(s => s.Sequence).FirstOrDefault()?.StationCode)" />
+                        }
+                    }
+                    else
+                    {
+                        <div class="row mb-2">
+                            <div class="col-md-4"><strong>状态:</strong> @_trace.CurrentStatus</div>
+                            <div class="col-md-4"><strong>已完成步骤:</strong> @_trace.CompletedStepSequence</div>
+                            <div class="col-md-4"><strong>下一站:</strong> @_trace.NextExpectedStation</div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(_stationMismatchHint))
+                        {
+                            <Alert Color="Color.Warning">@_stationMismatchHint</Alert>
+                        }
+                        @if (_activeFlow is not null)
+                        {
+                            <FlowSteps Flow="_activeFlow" CompletedSequence="_trace.CompletedStepSequence"
+                                       NextStation="_trace.NextExpectedStation" PendingStation="@GetPendingStation()" />
+                        }
+                    }
+                </BodyTemplate>
+            </Card>
+
+            <Card class="mt-3">
+                <HeaderTemplate>
+                    <strong>操作日志</strong>
+                </HeaderTemplate>
+                <BodyTemplate>
+                    @if (State.OperationLogs.Count == 0)
+                    {
+                        <p class="station-hint mb-0">暂无操作记录。</p>
+                    }
+                    else
+                    {
+                        <Table TItem="OperationLogEntry" Items="State.OperationLogs" IsStriped="true" IsBordered="true">
+                            <TableColumns>
+                                <TableColumn @bind-Field="@context.OccurredAt" FormatString="HH:mm:ss" Width="90" />
+                                <TableColumn @bind-Field="@context.Action" Width="120" />
+                                <TableColumn @bind-Field="@context.Code" Width="100" />
+                                <TableColumn @bind-Field="@context.Message" />
+                            </TableColumns>
+                        </Table>
+                    }
+                </BodyTemplate>
+            </Card>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private List<StationResponse> _stations = [];
+    private List<SelectedItem> _stationItems = [];
+    private StationResponse? _selectedStation;
+    private TestFlowResponse? _activeFlow;
+    private TraceabilityResponse? _trace;
+    private string? _stationMismatchHint;
+
+    private bool CanPassStation =>
+        !string.IsNullOrWhiteSpace(State.SelectedStationCode)
+        && !string.IsNullOrWhiteSpace(State.Sn)
+        && !string.IsNullOrWhiteSpace(State.WorkOrderNo)
+        && !string.IsNullOrWhiteSpace(State.OperatorId);
+
+    private bool CanUploadTest =>
+        _selectedStation?.IsTestStation == true
+        && !string.IsNullOrWhiteSpace(State.Sn)
+        && !string.IsNullOrWhiteSpace(State.TestBatchId)
+        && _trace is not null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.RefreshTestBatchId();
+        await LoadStationsAsync();
+        if (string.IsNullOrWhiteSpace(State.SelectedStationCode) && _stationItems.Count > 0)
+        {
+            State.SelectedStationCode = _stationItems[0].Value;
+        }
+
+        UpdateSelectedStation();
+        await LoadActiveFlowAsync();
+        _loading = false;
+    }
+
+    private async Task LoadStationsAsync()
+    {
+        _stations = (await ApiClient.GetStationsAsync()).ToList();
+        _stationItems = _stations
+            .Select(s => new SelectedItem(
+                s.StationCode,
+                $"{s.StationCode} - {s.Name}{(s.IsTestStation ? " [测试]" : "")}"))
+            .ToList();
+    }
+
+    private async Task LoadActiveFlowAsync()
+    {
+        var flows = await ApiClient.GetTestFlowsAsync("PCB-A");
+        _activeFlow = flows.FirstOrDefault(f => f.IsActive) ?? flows.FirstOrDefault();
+    }
+
+    private void UpdateSelectedStation()
+    {
+        _selectedStation = _stations.FirstOrDefault(s =>
+            string.Equals(s.StationCode, State.SelectedStationCode, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private Task OnStationChanged(string value)
+    {
+        State.SelectedStationCode = value;
+        UpdateSelectedStation();
+        UpdateStationMismatchHint();
+        return Task.CompletedTask;
+    }
+
+    private async Task LoadTraceAsync()
+    {
+        UpdateSelectedStation();
+        _stationMismatchHint = null;
+
+        if (string.IsNullOrWhiteSpace(State.Sn))
+        {
+            return;
+        }
+
+        _trace = await ApiClient.GetTraceabilityAsync(State.Sn.Trim());
+        UpdateStationMismatchHint();
+        StateHasChanged();
+    }
+
+    private void UpdateStationMismatchHint()
+    {
+        if (_trace?.NextExpectedStation is null || string.IsNullOrWhiteSpace(State.SelectedStationCode))
+        {
+            _stationMismatchHint = null;
+            return;
+        }
+
+        if (!string.Equals(_trace.NextExpectedStation, State.SelectedStationCode, StringComparison.OrdinalIgnoreCase))
+        {
+            _stationMismatchHint =
+                $"当前工站与下一站不匹配：期望 {_trace.NextExpectedStation}，已选 {State.SelectedStationCode}（过站将被 MES-4002 拒绝）";
+        }
+    }
+
+    private string? GetPendingStation()
+    {
+        if (_trace?.CurrentStatus == "InProcess" && _selectedStation?.IsTestStation == true
+            && string.Equals(_trace.CurrentStationCode, State.SelectedStationCode, StringComparison.OrdinalIgnoreCase)
+            && _trace.CompletedStepSequence is not null)
+        {
+            var next = _activeFlow?.Steps.OrderBy(s => s.Sequence)
+                .FirstOrDefault(s => s.Sequence > _trace.CompletedStepSequence);
+            if (next is not null && string.Equals(next.StationCode, State.SelectedStationCode, StringComparison.OrdinalIgnoreCase)
+                && next.StepType == "TestRequired")
+            {
+                return State.SelectedStationCode;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task PassStationAsync()
+    {
+        UpdateSelectedStation();
+        var result = await ApiClient.PassStationAsync(new StationPassRequest
+        {
+            Sn = State.Sn.Trim(),
+            WorkOrderNo = State.WorkOrderNo.Trim(),
+            StationCode = State.SelectedStationCode,
+            OperatorId = State.OperatorId.Trim()
+        });
+
+        State.AddLog("过站", result);
+        await ShowResultAsync(result);
+        await LoadTraceAsync();
+    }
+
+    private async Task UploadTestAsync(bool passed)
+    {
+        var result = await ApiClient.UploadTestResultAsync(new UploadTestResultRequest
+        {
+            Sn = State.Sn.Trim(),
+            StationCode = State.SelectedStationCode,
+            TestBatchId = State.TestBatchId.Trim(),
+            Passed = passed,
+            Metrics = passed ? new Dictionary<string, double> { ["voltage"] = 3.3 } : null
+        });
+
+        State.AddLog(passed ? "测试 PASS" : "测试 FAIL", result);
+        State.RefreshTestBatchId();
+        await ShowResultAsync(result);
+        await LoadTraceAsync();
+    }
+
+    private async Task ShowResultAsync(CommandResult result)
+    {
+        await MessageService.Show(new MessageOption
+        {
+            Content = $"{result.Code}: {result.Message}",
+            Icon = result.Success ? "fa-solid fa-circle-check" : "fa-solid fa-circle-xmark",
+            Color = result.Success ? Color.Success : Color.Danger
+        });
+    }
+}

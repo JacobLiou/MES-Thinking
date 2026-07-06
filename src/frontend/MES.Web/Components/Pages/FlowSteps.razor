@@ -1,0 +1,83 @@
+@using MES.Web.Models
+
+<ul class="list-group list-group-flush">
+    @foreach (var step in Flow.Steps.OrderBy(s => s.Sequence))
+    {
+        var status = GetStepStatus(step);
+        <li class="list-group-item d-flex justify-content-between align-items-center @GetStepClass(status)">
+            <span>
+                <strong>@step.Sequence</strong> — @step.StepCode
+                <small class="text-muted ms-2">@step.StationCode (@step.StepType)</small>
+            </span>
+            <span class="badge @GetBadgeClass(status)">@GetStatusText(status)</span>
+        </li>
+    }
+</ul>
+
+@code {
+    [Parameter, EditorRequired]
+    public TestFlowResponse Flow { get; set; } = default!;
+
+    [Parameter]
+    public int? CompletedSequence { get; set; }
+
+    [Parameter]
+    public string? NextStation { get; set; }
+
+    [Parameter]
+    public string? PendingStation { get; set; }
+
+    private enum StepStatus
+    {
+        Pending,
+        Current,
+        WaitingTest,
+        Completed
+    }
+
+    private StepStatus GetStepStatus(RouteStepResponse step)
+    {
+        if (CompletedSequence is not null && step.Sequence <= CompletedSequence)
+        {
+            return StepStatus.Completed;
+        }
+
+        if (!string.IsNullOrEmpty(PendingStation)
+            && string.Equals(step.StationCode, PendingStation, StringComparison.OrdinalIgnoreCase))
+        {
+            return StepStatus.WaitingTest;
+        }
+
+        if (!string.IsNullOrEmpty(NextStation)
+            && string.Equals(step.StationCode, NextStation, StringComparison.OrdinalIgnoreCase))
+        {
+            return StepStatus.Current;
+        }
+
+        return StepStatus.Pending;
+    }
+
+    private static string GetStepClass(StepStatus status) => status switch
+    {
+        StepStatus.Completed => "list-group-item-success",
+        StepStatus.Current => "list-group-item-primary",
+        StepStatus.WaitingTest => "list-group-item-warning",
+        _ => string.Empty
+    };
+
+    private static string GetBadgeClass(StepStatus status) => status switch
+    {
+        StepStatus.Completed => "text-bg-success",
+        StepStatus.Current => "text-bg-primary",
+        StepStatus.WaitingTest => "text-bg-warning",
+        _ => "text-bg-secondary"
+    };
+
+    private static string GetStatusText(StepStatus status) => status switch
+    {
+        StepStatus.Completed => "已完成",
+        StepStatus.Current => "当前站",
+        StepStatus.WaitingTest => "待测试",
+        _ => "待执行"
+    };
+}

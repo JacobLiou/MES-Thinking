@@ -8,6 +8,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+var frontendOrigins = builder.Configuration.GetSection("Cors:FrontendOrigins").Get<string[]>()
+    ?? ["https://localhost:7023", "http://localhost:5153"];
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DevFrontend", policy =>
+        policy.WithOrigins(frontendOrigins)
+            .AllowAnyHeader()
+            .AllowAnyMethod());
+});
+
 builder.Services.AddSingleton<IWorkOrderRepository, InMemoryWorkOrderRepository>();
 builder.Services.AddSingleton<ISerialUnitRepository, InMemorySerialUnitRepository>();
 builder.Services.AddSingleton<ITestRecordRepository, InMemoryTestRecordRepository>();
@@ -31,6 +42,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("DevFrontend");
+}
 
 app.MapPost("/api/work-orders", async (CreateWorkOrderRequest request, IMesExecutionService service) =>
 {

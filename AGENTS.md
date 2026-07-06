@@ -17,7 +17,7 @@
 | --- | --- |
 | 运行时 | .NET 8、C# 12 |
 | API | ASP.NET Core Minimal API、Swagger |
-| 前端（计划） | Blazor |
+| 前端 | Blazor Web App + BootstrapBlazor（[`frontend/MES.Web`](../frontend/MES.Web)） |
 | 持久化（计划） | EF Core + SQL Server 或 PostgreSQL（二选一，不用 SQLite/MySQL） |
 | 消息/缓存（计划） | RabbitMQ、Redis |
 | 实时推送（计划） | SignalR |
@@ -30,8 +30,11 @@
 # 构建整个解决方案
 dotnet build src/MES.sln
 
-# 运行 API（开发环境，默认 https://localhost:7xxx）
+# 运行 API（开发环境，默认 https://localhost:7255）
 dotnet run --project src/MES.Api
+
+# 运行 Blazor 前端（默认 https://localhost:7023）
+dotnet run --project frontend/MES.Web
 
 # 发布
 dotnet publish src/MES.Api -c Release -o ./publish
@@ -144,7 +147,7 @@ MES.Domain → （无项目引用）
 | EF Core 持久化 | ⏳ 待实现 |
 | JWT + RBAC | ⏳ 待实现 |
 | RabbitMQ 事件发布 | ⏳ 待实现 |
-| Blazor 前端 | ⏳ 待实现 |
+| Blazor 前端（工站模拟） | ✅ 基础框架 |
 | SPC / 看板 | ⏳ M2–M3 |
 
 ### 业务原则（来自设计）
