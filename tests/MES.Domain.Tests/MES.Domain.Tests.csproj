@@ -19,9 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\MES.Domain\MES.Domain.csproj" />
-    <ProjectReference Include="..\..\src\MES.Application\MES.Application.csproj" />
-    <ProjectReference Include="..\..\src\MES.Infrastructure\MES.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\backend\MES.Domain\MES.Domain.csproj" />
+    <ProjectReference Include="..\..\src\backend\MES.Application\MES.Application.csproj" />
+    <ProjectReference Include="..\..\src\backend\MES.Infrastructure\MES.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

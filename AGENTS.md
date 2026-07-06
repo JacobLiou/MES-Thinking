@@ -8,7 +8,7 @@
 
 - **用户**：产线操作员、测试工程师、质量/生产管理人员
 - **设备接入**：首期通过 HTTP/REST 接收上位机/测试仪数据
-- **当前阶段**：M1 执行闭环（内存仓储原型，尚未接入数据库与 Blazor 前端）
+- **当前阶段**：M1 执行闭环（内存仓储 + Blazor 工站模拟前端）
 - **明确不做（第一阶段）**：APS 排产、WMS、ERP 深度集成
 
 ## Tech Stack
@@ -17,7 +17,7 @@
 | --- | --- |
 | 运行时 | .NET 8、C# 12 |
 | API | ASP.NET Core Minimal API、Swagger |
-| 前端 | Blazor Web App + BootstrapBlazor（[`frontend/MES.Web`](../frontend/MES.Web)） |
+| 前端 | Blazor Web App + BootstrapBlazor（[`src/frontend/MES.Web`](src/frontend/MES.Web)） |
 | 持久化（计划） | EF Core + SQL Server 或 PostgreSQL（二选一，不用 SQLite/MySQL） |
 | 消息/缓存（计划） | RabbitMQ、Redis |
 | 实时推送（计划） | SignalR |
@@ -27,30 +27,41 @@
 ## Setup Commands
 
 ```bash
-# 构建整个解决方案
-dotnet build src/MES.sln
+# 构建整个解决方案（仓库根目录）
+dotnet build MES.sln
 
 # 运行 API（开发环境，默认 https://localhost:7255）
-dotnet run --project src/MES.Api
+dotnet run --project src/backend/MES.Api
 
 # 运行 Blazor 前端（默认 https://localhost:7023）
-dotnet run --project frontend/MES.Web
+dotnet run --project src/frontend/MES.Web
 
-# 发布
-dotnet publish src/MES.Api -c Release -o ./publish
+# 测试
+dotnet test MES.sln
+
+# 发布 API
+dotnet publish src/backend/MES.Api -c Release -o ./publish
 ```
 
-开发时 Swagger UI 在 `Development` 环境自动启用。尚无测试项目，添加后在此补充 `dotnet test` 命令。
+开发时 Swagger UI 在 `Development` 环境自动启用。
 
 ## Project Structure
 
 ```
-src/
-├── MES.sln
-├── MES.Domain/          # 实体、枚举、领域规则（无外部依赖）
-├── MES.Application/     # 用例编排、Contracts（Request/Response/Repository 接口）
-├── MES.Infrastructure/  # EF Core、Redis、MQ 等实现（当前为 InMemory 仓储）
-└── MES.Api/             # HTTP 端点、DI 注册、鉴权（待实现）
+MES-Thinking/
+├── MES.sln                      # 统一解决方案（backend + frontend + tests）
+├── AGENTS.md                    # 本文件：全局约定
+├── design.md                    # 技术方案
+├── src/
+│   ├── backend/                 # 后端分层（详见 src/backend/AGENTS.md）
+│   │   ├── MES.Domain/
+│   │   ├── MES.Application/
+│   │   ├── MES.Infrastructure/
+│   │   └── MES.Api/
+│   └── frontend/                # Blazor 前端（详见 src/frontend/AGENTS.md）
+│       └── MES.Web/
+└── tests/
+    └── MES.Domain.Tests/
 ```
 
 ### 分层依赖规则
@@ -60,12 +71,14 @@ MES.Api → MES.Application + MES.Infrastructure
 MES.Infrastructure → MES.Application + MES.Domain
 MES.Application → MES.Domain
 MES.Domain → （无项目引用）
+MES.Web → （仅 HTTP 调用 MES.Api，不引用后端项目）
 ```
 
 - **Domain**：核心业务规则与状态机，不引用 Application/Infrastructure
 - **Application**：`IMesExecutionService` 等用例服务；Repository 接口定义在 `Contracts/Repositories.cs`
 - **Infrastructure**：实现仓储与外部集成；新增持久化实现放此层
 - **Api**：仅做 HTTP 映射、鉴权、参数校验；业务逻辑不放 Api 层
+- **MES.Web**：UI 与 API 客户端，DTO 在 `Models/` 独立维护
 
 ### 核心领域概念
 
@@ -111,7 +124,7 @@ MES.Domain → （无项目引用）
 | POST | `/api/work-orders` | 创建工单 |
 | POST | `/api/stations` | 创建工站 |
 | GET | `/api/stations` | 工站列表 |
-| POST | `/api/test-flows` | 创建测试流程（含步骤） |
+| POST | `/api/test-flows` | 创建测试流程（含 steps） |
 | GET | `/api/test-flows` | 测试流程列表（可选 `productCode` 过滤） |
 | GET | `/api/test-flows/{flowCode}` | 测试流程详情 |
 | POST | `/api/test-flows/{flowCode}/activate` | 启用流程（同产品其余置为 inactive） |
@@ -132,7 +145,7 @@ MES.Domain → （无项目引用）
 
 - 优先覆盖：幂等去重、SN 状态流转、工序顺序校验、测试站 PASS 门控
 - 仓储层用内存实现或 Testcontainers（接入数据库后）
-- 运行：`dotnet test src/MES.sln`
+- 运行：`dotnet test MES.sln`
 
 ## Architecture Notes
 
@@ -176,10 +189,15 @@ MES.Domain → （无项目引用）
 ## PR & Commit Guidelines
 
 - 提交信息：简洁中文或英文，说明「为什么」而非仅罗列文件
-- PR 前：`dotnet build src/MES.sln` 必须通过
+- PR 前：`dotnet build MES.sln` 必须通过
 - 涉及 API 变更：同步更新 [design.md](design.md) 契约章节或在本文件 API 表中注明
 - 大范围重构前先与 [design.md](design.md) 对齐，避免偏离分层架构
 
 ## Nested AGENTS.md
 
-若在子目录新增独立服务（如 Blazor 前端、Device Gateway），在该目录放置专属 `AGENTS.md`；代理优先读取最近一层的文件。当前单体后端以本文件为准。
+子目录专属说明，代理优先读取最近一层：
+
+| 路径 | 范围 |
+| --- | --- |
+| [src/backend/AGENTS.md](src/backend/AGENTS.md) | 后端分层与命令 |
+| [src/frontend/AGENTS.md](src/frontend/AGENTS.md) | Blazor 前端与演示流程 |

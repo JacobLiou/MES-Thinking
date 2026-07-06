@@ -5,11 +5,13 @@
 ## 启动
 
 ```bash
+# 从仓库根目录执行
+
 # 终端 1：后端 API（必须先启动）
-dotnet run --project src/MES.Api
+dotnet run --project src/backend/MES.Api
 
 # 终端 2：前端
-dotnet run --project frontend/MES.Web
+dotnet run --project src/frontend/MES.Web
 ```
 
 默认地址：
@@ -31,7 +33,18 @@ dotnet run --project frontend/MES.Web
 }
 ```
 
-API 开发环境 CORS 允许来源见 [`src/MES.Api/appsettings.Development.json`](../src/MES.Api/appsettings.Development.json)。
+API 开发环境 CORS 允许来源见 [`src/backend/MES.Api/appsettings.Development.json`](../backend/MES.Api/appsettings.Development.json)。
+
+## 目录
+
+```
+src/frontend/MES.Web/
+├── Components/          # 页面与布局
+│   ├── Layout/          # MainLayout（BootstrapBlazor 侧栏）
+│   └── Pages/           # Home、StationWorkbench、WorkOrders、Traceability
+├── Models/              # API DTO（与后端 Contracts 对齐，不引用后端项目）
+└── Services/            # MesApiClient、StationWorkbenchState
+```
 
 ## 页面
 
