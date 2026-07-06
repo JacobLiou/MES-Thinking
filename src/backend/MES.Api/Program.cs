@@ -9,7 +9,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var frontendOrigins = builder.Configuration.GetSection("Cors:FrontendOrigins").Get<string[]>()
-    ?? ["https://localhost:7023", "http://localhost:5153"];
+    ?? ["https://localhost:7023", "http://localhost:5153", "https://localhost:44337", "http://localhost:20561"];
 
 builder.Services.AddCors(options =>
 {
