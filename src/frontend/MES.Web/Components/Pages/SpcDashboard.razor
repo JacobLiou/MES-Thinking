@@ -6,6 +6,17 @@
 <PageTitle>SPC 与看板</PageTitle>
 
 <h4>SPC 总览</h4>
+<div class="mb-2">
+    <span class="badge @GetConnectionBadgeClass()">@GetConnectionBadgeText()</span>
+    @if (!string.IsNullOrWhiteSpace(_connectionMessage))
+    {
+        <span class="ms-2 small text-muted">@_connectionMessage</span>
+    }
+    @if (_lastRealtimeAt is not null)
+    {
+        <span class="ms-2 small text-muted">最后推送：@_lastRealtimeAt.Value.LocalDateTime</span>
+    }
+</div>
 <div class="mb-3">
     <button class="btn btn-primary" @onclick="RefreshAsync" disabled="@_loading">刷新</button>
     @if (_loading)
@@ -57,11 +68,6 @@
     </table>
 }
 
-@if (!string.IsNullOrWhiteSpace(_connectionState))
-{
-    <div class="small text-muted">实时连接：@_connectionState</div>
-}
-
 <h5 class="mt-4">最新告警</h5>
 @if (_dashboard is not null)
 {
@@ -98,6 +104,8 @@
     private bool _loading;
     private HubConnection? _hubConnection;
     private string? _connectionState;
+    private string? _connectionMessage;
+    private DateTimeOffset? _lastRealtimeAt;
 
     protected override async Task OnInitializedAsync()
     {
@@ -132,30 +140,61 @@
         {
             _dashboard = payload;
             _summary = payload.Summary;
+            _lastRealtimeAt = DateTimeOffset.Now;
+            _connectionState = "Connected";
+            _connectionMessage = "收到实时更新";
             await InvokeAsync(StateHasChanged);
         });
 
         _hubConnection.Reconnecting += _ =>
         {
-            _connectionState = "重连中";
+            _connectionState = "Reconnecting";
+            _connectionMessage = "连接中断，正在自动重连...";
             return InvokeAsync(StateHasChanged);
         };
 
         _hubConnection.Reconnected += _ =>
         {
-            _connectionState = "已连接";
+            _connectionState = "Connected";
+            _connectionMessage = "重连成功";
             return InvokeAsync(StateHasChanged);
         };
 
         _hubConnection.Closed += _ =>
         {
-            _connectionState = "已断开";
+            _connectionState = "Closed";
+            _connectionMessage = "连接已断开，请点击刷新或稍后重试。";
             return InvokeAsync(StateHasChanged);
         };
 
-        await _hubConnection.StartAsync();
-        _connectionState = "已连接";
+        try
+        {
+            await _hubConnection.StartAsync();
+            _connectionState = "Connected";
+            _connectionMessage = "实时连接已建立";
+        }
+        catch (Exception ex)
+        {
+            _connectionState = "Closed";
+            _connectionMessage = $"实时连接失败：{ex.Message}";
+        }
     }
+
+    private string GetConnectionBadgeText() => _connectionState switch
+    {
+        "Connected" => "实时已连接",
+        "Reconnecting" => "重连中",
+        "Closed" => "已断开",
+        _ => "未连接"
+    };
+
+    private string GetConnectionBadgeClass() => _connectionState switch
+    {
+        "Connected" => "bg-success",
+        "Reconnecting" => "bg-warning text-dark",
+        "Closed" => "bg-danger",
+        _ => "bg-secondary"
+    };
 
     public async ValueTask DisposeAsync()
     {
