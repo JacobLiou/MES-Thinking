@@ -7,6 +7,8 @@ public sealed class MesApiClient
 {
     private readonly HttpClient _httpClient;
 
+    public Uri BaseAddress => _httpClient.BaseAddress ?? throw new InvalidOperationException("Mes API base address is not configured.");
+
     public MesApiClient(HttpClient httpClient)
     {
         _httpClient = httpClient;
@@ -136,6 +138,23 @@ public sealed class MesApiClient
         CancellationToken cancellationToken = default)
     {
         var response = await _httpClient.PostAsJsonAsync("/api/spc/rules", request, cancellationToken);
+        return await ReadCommandResultAsync(response, cancellationToken);
+    }
+
+    public async Task<CommandResult> UpdateSpcRuleAsync(
+        string ruleCode,
+        UpdateSpcRuleRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PutAsJsonAsync($"/api/spc/rules/{Uri.EscapeDataString(ruleCode)}", request, cancellationToken);
+        return await ReadCommandResultAsync(response, cancellationToken);
+    }
+
+    public async Task<CommandResult> DeleteSpcRuleAsync(
+        string ruleCode,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.DeleteAsync($"/api/spc/rules/{Uri.EscapeDataString(ruleCode)}", cancellationToken);
         return await ReadCommandResultAsync(response, cancellationToken);
     }
 

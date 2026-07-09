@@ -25,6 +25,7 @@ builder.Services.AddCors(options =>
 });
 
 var useInMemory = builder.Configuration.GetValue<bool>("Persistence:UseInMemory");
+var autoMigrate = builder.Configuration.GetValue<bool>("Persistence:AutoMigrateOnStartup");
 
 if (useInMemory)
 {
@@ -62,11 +63,11 @@ else
 
 var app = builder.Build();
 
-if (!useInMemory)
+if (!useInMemory && autoMigrate)
 {
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<MesDbContext>();
-    await dbContext.Database.EnsureCreatedAsync();
+    await dbContext.Database.MigrateAsync();
 }
 
 await MesSeedData.InitializeAsync(

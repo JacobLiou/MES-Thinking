@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="BootstrapBlazor" Version="10.7.3" />
     <PackageReference Include="BootstrapBlazor.FontAwesome" Version="10.0.1" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.7" />
   </ItemGroup>
 
 </Project>

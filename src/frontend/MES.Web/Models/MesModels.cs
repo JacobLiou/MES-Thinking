@@ -111,6 +111,16 @@ public sealed class CreateSpcRuleRequest
     public bool IsActive { get; set; } = true;
 }
 
+public sealed class UpdateSpcRuleRequest
+{
+    public string MetricName { get; set; } = string.Empty;
+    public string? ProductCode { get; set; }
+    public string? StationCode { get; set; }
+    public double? LowerLimit { get; set; }
+    public double? UpperLimit { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
 public sealed class SpcSummaryResponse
 {
     public DateTimeOffset WindowStart { get; set; }
