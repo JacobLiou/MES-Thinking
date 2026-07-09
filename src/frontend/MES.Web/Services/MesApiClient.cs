@@ -76,6 +76,90 @@ public sealed class MesApiClient
             cancellationToken);
     }
 
+    public async Task<SpcSummaryResponse> GetSpcSummaryAsync(
+        string? productCode = null,
+        string? stationCode = null,
+        DateTimeOffset? from = null,
+        DateTimeOffset? to = null,
+        CancellationToken cancellationToken = default)
+    {
+        var queryParams = new List<string>();
+        if (!string.IsNullOrWhiteSpace(productCode))
+        {
+            queryParams.Add($"productCode={Uri.EscapeDataString(productCode)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(stationCode))
+        {
+            queryParams.Add($"stationCode={Uri.EscapeDataString(stationCode)}");
+        }
+
+        if (from.HasValue)
+        {
+            queryParams.Add($"from={Uri.EscapeDataString(from.Value.ToString("O"))}");
+        }
+
+        if (to.HasValue)
+        {
+            queryParams.Add($"to={Uri.EscapeDataString(to.Value.ToString("O"))}");
+        }
+
+        var query = queryParams.Count == 0 ? string.Empty : $"?{string.Join("&", queryParams)}";
+
+        return await _httpClient.GetFromJsonAsync<SpcSummaryResponse>($"/api/spc/summary{query}", cancellationToken)
+            ?? new SpcSummaryResponse();
+    }
+
+    public async Task<IReadOnlyList<SpcRuleResponse>> GetSpcRulesAsync(
+        string? productCode = null,
+        string? stationCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        var queryParams = new List<string>();
+        if (!string.IsNullOrWhiteSpace(productCode))
+        {
+            queryParams.Add($"productCode={Uri.EscapeDataString(productCode)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(stationCode))
+        {
+            queryParams.Add($"stationCode={Uri.EscapeDataString(stationCode)}");
+        }
+
+        var query = queryParams.Count == 0 ? string.Empty : $"?{string.Join("&", queryParams)}";
+        return await _httpClient.GetFromJsonAsync<List<SpcRuleResponse>>($"/api/spc/rules{query}", cancellationToken)
+            ?? [];
+    }
+
+    public async Task<CommandResult> CreateSpcRuleAsync(
+        CreateSpcRuleRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _httpClient.PostAsJsonAsync("/api/spc/rules", request, cancellationToken);
+        return await ReadCommandResultAsync(response, cancellationToken);
+    }
+
+    public async Task<DashboardRealtimeResponse> GetDashboardRealtimeAsync(
+        string? productCode = null,
+        string? stationCode = null,
+        CancellationToken cancellationToken = default)
+    {
+        var queryParams = new List<string>();
+        if (!string.IsNullOrWhiteSpace(productCode))
+        {
+            queryParams.Add($"productCode={Uri.EscapeDataString(productCode)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(stationCode))
+        {
+            queryParams.Add($"stationCode={Uri.EscapeDataString(stationCode)}");
+        }
+
+        var query = queryParams.Count == 0 ? string.Empty : $"?{string.Join("&", queryParams)}";
+        return await _httpClient.GetFromJsonAsync<DashboardRealtimeResponse>($"/api/dashboard/realtime{query}", cancellationToken)
+            ?? new DashboardRealtimeResponse();
+    }
+
     private static async Task<CommandResult> ReadCommandResultAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)

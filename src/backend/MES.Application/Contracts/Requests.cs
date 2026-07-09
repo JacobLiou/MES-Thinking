@@ -51,3 +51,24 @@ public sealed class CreateTestFlowRequest
     public bool IsActive { get; init; }
     public IReadOnlyList<CreateRouteStepRequest> Steps { get; init; } = [];
 }
+
+public sealed class CreateSpcRuleRequest
+{
+    public required string RuleCode { get; init; }
+    public required string MetricName { get; init; }
+    public string? ProductCode { get; init; }
+    public string? StationCode { get; init; }
+    public double? LowerLimit { get; init; }
+    public double? UpperLimit { get; init; }
+    public bool IsActive { get; init; } = true;
+}
+
+public sealed class UpdateSpcRuleRequest
+{
+    public required string MetricName { get; init; }
+    public string? ProductCode { get; init; }
+    public string? StationCode { get; init; }
+    public double? LowerLimit { get; init; }
+    public double? UpperLimit { get; init; }
+    public bool IsActive { get; init; } = true;
+}

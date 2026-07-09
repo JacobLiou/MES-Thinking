@@ -21,6 +21,11 @@ public interface ITestRecordRepository
     Task<bool> ExistsAsync(string sn, string stationCode, string testBatchId, CancellationToken cancellationToken = default);
     Task AddAsync(TestRecord testRecord, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TestRecord>> GetBySnAsync(string sn, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TestRecord>> GetByTimeRangeAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        string? stationCode,
+        CancellationToken cancellationToken = default);
 }
 
 public interface ITraceEventRepository
@@ -44,4 +49,19 @@ public interface ITestFlowRepository
     Task AddAsync(TestFlow testFlow, CancellationToken cancellationToken = default);
     Task UpdateAsync(TestFlow testFlow, CancellationToken cancellationToken = default);
     Task DeactivateByProductCodeAsync(string productCode, string exceptFlowCode, CancellationToken cancellationToken = default);
+}
+
+public interface ISpcRuleRepository
+{
+    Task<SpcRule?> GetByCodeAsync(string ruleCode, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SpcRule>> GetAllAsync(string? productCode, string? stationCode, CancellationToken cancellationToken = default);
+    Task AddAsync(SpcRule rule, CancellationToken cancellationToken = default);
+    Task UpdateAsync(SpcRule rule, CancellationToken cancellationToken = default);
+    Task DeleteAsync(string ruleCode, CancellationToken cancellationToken = default);
+}
+
+public interface IAlarmEventRepository
+{
+    Task AddAsync(AlarmEvent alarmEvent, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<AlarmEvent>> GetLatestAsync(int count, string? stationCode, CancellationToken cancellationToken = default);
 }

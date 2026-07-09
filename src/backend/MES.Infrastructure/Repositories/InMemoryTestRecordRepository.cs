@@ -27,6 +27,22 @@ public sealed class InMemoryTestRecordRepository : ITestRecordRepository
         return Task.FromResult<IReadOnlyList<TestRecord>>(data);
     }
 
+    public Task<IReadOnlyList<TestRecord>> GetByTimeRangeAsync(
+        DateTimeOffset from,
+        DateTimeOffset to,
+        string? stationCode,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _store.Values.Where(x => x.TestedAt >= from && x.TestedAt <= to);
+
+        if (!string.IsNullOrWhiteSpace(stationCode))
+        {
+            query = query.Where(x => x.StationCode.Equals(stationCode, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return Task.FromResult<IReadOnlyList<TestRecord>>(query.OrderBy(x => x.TestedAt).ToList());
+    }
+
     private static string BuildKey(string sn, string stationCode, string testBatchId) =>
         $"{sn}|{stationCode}|{testBatchId}";
 }

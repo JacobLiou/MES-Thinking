@@ -65,3 +65,59 @@ public sealed class TestFlowResponse
     public DateTimeOffset CreatedAt { get; init; }
     public IReadOnlyList<RouteStepResponse> Steps { get; init; } = [];
 }
+
+public sealed class SpcSummaryResponse
+{
+    public DateTimeOffset WindowStart { get; init; }
+    public DateTimeOffset WindowEnd { get; init; }
+    public string? ProductCode { get; init; }
+    public string? StationCode { get; init; }
+    public int SampleCount { get; init; }
+    public int PassCount { get; init; }
+    public int FailCount { get; init; }
+    public double YieldRate { get; init; }
+    public double FirstPassYieldRate { get; init; }
+    public IReadOnlyList<SpcMetricSummaryItem> Metrics { get; init; } = [];
+}
+
+public sealed class SpcMetricSummaryItem
+{
+    public required string MetricName { get; init; }
+    public int Count { get; init; }
+    public double Mean { get; init; }
+    public double Min { get; init; }
+    public double Max { get; init; }
+}
+
+public sealed class SpcRuleResponse
+{
+    public required string RuleCode { get; init; }
+    public required string MetricName { get; init; }
+    public string? ProductCode { get; init; }
+    public string? StationCode { get; init; }
+    public double? LowerLimit { get; init; }
+    public double? UpperLimit { get; init; }
+    public bool IsActive { get; init; }
+    public DateTimeOffset CreatedAt { get; init; }
+}
+
+public sealed class AlarmEventResponse
+{
+    public required string AlarmCode { get; init; }
+    public required string Sn { get; init; }
+    public required string StationCode { get; init; }
+    public required string MetricName { get; init; }
+    public double MetricValue { get; init; }
+    public double? LowerLimit { get; init; }
+    public double? UpperLimit { get; init; }
+    public required string Severity { get; init; }
+    public required string Status { get; init; }
+    public required string Message { get; init; }
+    public DateTimeOffset OccurredAt { get; init; }
+}
+
+public sealed class DashboardRealtimeResponse
+{
+    public required SpcSummaryResponse Summary { get; init; }
+    public IReadOnlyList<AlarmEventResponse> LatestAlarms { get; init; } = [];
+}

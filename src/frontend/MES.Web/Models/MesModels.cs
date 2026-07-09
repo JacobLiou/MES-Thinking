@@ -99,3 +99,70 @@ public sealed class OperationLogEntry
     public string Message { get; set; } = string.Empty;
     public bool Success { get; set; }
 }
+
+public sealed class CreateSpcRuleRequest
+{
+    public string RuleCode { get; set; } = string.Empty;
+    public string MetricName { get; set; } = string.Empty;
+    public string? ProductCode { get; set; }
+    public string? StationCode { get; set; }
+    public double? LowerLimit { get; set; }
+    public double? UpperLimit { get; set; }
+    public bool IsActive { get; set; } = true;
+}
+
+public sealed class SpcSummaryResponse
+{
+    public DateTimeOffset WindowStart { get; set; }
+    public DateTimeOffset WindowEnd { get; set; }
+    public string? ProductCode { get; set; }
+    public string? StationCode { get; set; }
+    public int SampleCount { get; set; }
+    public int PassCount { get; set; }
+    public int FailCount { get; set; }
+    public double YieldRate { get; set; }
+    public double FirstPassYieldRate { get; set; }
+    public List<SpcMetricSummaryItem> Metrics { get; set; } = [];
+}
+
+public sealed class SpcMetricSummaryItem
+{
+    public string MetricName { get; set; } = string.Empty;
+    public int Count { get; set; }
+    public double Mean { get; set; }
+    public double Min { get; set; }
+    public double Max { get; set; }
+}
+
+public sealed class SpcRuleResponse
+{
+    public string RuleCode { get; set; } = string.Empty;
+    public string MetricName { get; set; } = string.Empty;
+    public string? ProductCode { get; set; }
+    public string? StationCode { get; set; }
+    public double? LowerLimit { get; set; }
+    public double? UpperLimit { get; set; }
+    public bool IsActive { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public sealed class AlarmEventResponse
+{
+    public string AlarmCode { get; set; } = string.Empty;
+    public string Sn { get; set; } = string.Empty;
+    public string StationCode { get; set; } = string.Empty;
+    public string MetricName { get; set; } = string.Empty;
+    public double MetricValue { get; set; }
+    public double? LowerLimit { get; set; }
+    public double? UpperLimit { get; set; }
+    public string Severity { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public DateTimeOffset OccurredAt { get; set; }
+}
+
+public sealed class DashboardRealtimeResponse
+{
+    public SpcSummaryResponse Summary { get; set; } = new();
+    public List<AlarmEventResponse> LatestAlarms { get; set; } = [];
+}

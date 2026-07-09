@@ -13,6 +13,8 @@ public sealed class MesExecutionService : IMesExecutionService
     private readonly ITraceEventRepository _traceEventRepository;
     private readonly IStationRepository _stationRepository;
     private readonly ITestFlowRepository _testFlowRepository;
+    private readonly ISpcRuleRepository _spcRuleRepository;
+    private readonly IAlarmEventRepository _alarmEventRepository;
 
     public MesExecutionService(
         IWorkOrderRepository workOrderRepository,
@@ -20,7 +22,9 @@ public sealed class MesExecutionService : IMesExecutionService
         ITestRecordRepository testRecordRepository,
         ITraceEventRepository traceEventRepository,
         IStationRepository stationRepository,
-        ITestFlowRepository testFlowRepository)
+        ITestFlowRepository testFlowRepository,
+        ISpcRuleRepository spcRuleRepository,
+        IAlarmEventRepository alarmEventRepository)
     {
         _workOrderRepository = workOrderRepository;
         _serialUnitRepository = serialUnitRepository;
@@ -28,6 +32,8 @@ public sealed class MesExecutionService : IMesExecutionService
         _traceEventRepository = traceEventRepository;
         _stationRepository = stationRepository;
         _testFlowRepository = testFlowRepository;
+        _spcRuleRepository = spcRuleRepository;
+        _alarmEventRepository = alarmEventRepository;
     }
 
     public async Task<CommandResult> CreateWorkOrderAsync(CreateWorkOrderRequest request, CancellationToken cancellationToken = default)
@@ -194,6 +200,11 @@ public sealed class MesExecutionService : IMesExecutionService
         TestFlowValidator.ApplyTestResult(serialUnit, flow, pendingStep, request.Passed);
         await _serialUnitRepository.UpdateAsync(serialUnit, cancellationToken);
 
+        await EvaluateSpcRulesAsync(
+            testRecord,
+            workOrder.ProductCode,
+            cancellationToken);
+
         await _traceEventRepository.AddAsync(new TraceEvent
         {
             Sn = request.Sn,
@@ -204,6 +215,66 @@ public sealed class MesExecutionService : IMesExecutionService
         }, cancellationToken);
 
         return Success("Test result uploaded.");
+    }
+
+    private async Task EvaluateSpcRulesAsync(
+        TestRecord testRecord,
+        string productCode,
+        CancellationToken cancellationToken)
+    {
+        if (testRecord.Metrics.Count == 0)
+        {
+            return;
+        }
+
+        var rules = await _spcRuleRepository.GetAllAsync(productCode, testRecord.StationCode, cancellationToken);
+        var activeRules = rules.Where(x => x.IsActive).ToList();
+
+        if (activeRules.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var metric in testRecord.Metrics)
+        {
+            var matchedRules = activeRules.Where(rule =>
+                string.Equals(rule.MetricName, metric.Key, StringComparison.OrdinalIgnoreCase));
+
+            foreach (var rule in matchedRules)
+            {
+                var lowerViolated = rule.LowerLimit.HasValue && metric.Value < rule.LowerLimit.Value;
+                var upperViolated = rule.UpperLimit.HasValue && metric.Value > rule.UpperLimit.Value;
+
+                if (!lowerViolated && !upperViolated)
+                {
+                    continue;
+                }
+
+                var alarm = new AlarmEvent
+                {
+                    AlarmCode = $"ALM-{Guid.NewGuid():N}",
+                    Sn = testRecord.Sn,
+                    StationCode = testRecord.StationCode,
+                    MetricName = metric.Key,
+                    MetricValue = metric.Value,
+                    LowerLimit = rule.LowerLimit,
+                    UpperLimit = rule.UpperLimit,
+                    Severity = "Warning",
+                    Status = "New",
+                    Message = $"SPC rule '{rule.RuleCode}' violated for metric '{metric.Key}'."
+                };
+
+                await _alarmEventRepository.AddAsync(alarm, cancellationToken);
+                await _traceEventRepository.AddAsync(new TraceEvent
+                {
+                    Sn = testRecord.Sn,
+                    EventType = "SpcAlarmRaised",
+                    StationCode = testRecord.StationCode,
+                    OperatorId = "SYSTEM",
+                    Message = alarm.Message
+                }, cancellationToken);
+            }
+        }
     }
 
     public async Task<TraceabilityResponse?> GetTraceabilityAsync(string sn, CancellationToken cancellationToken = default)

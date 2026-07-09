@@ -17,13 +17,17 @@ public sealed class MesExecutionServiceFlowTests
         var traceEventRepository = new InMemoryTraceEventRepository();
         var stationRepository = new InMemoryStationRepository();
         var testFlowRepository = new InMemoryTestFlowRepository();
+        var spcRuleRepository = new InMemorySpcRuleRepository();
+        var alarmEventRepository = new InMemoryAlarmEventRepository();
         var service = new MesExecutionService(
             workOrderRepository,
             serialUnitRepository,
             testRecordRepository,
             traceEventRepository,
             stationRepository,
-            testFlowRepository);
+            testFlowRepository,
+            spcRuleRepository,
+            alarmEventRepository);
 
         await SeedFlowAsync(stationRepository, testFlowRepository);
         await workOrderRepository.AddAsync(new WorkOrder
@@ -65,13 +69,17 @@ public sealed class MesExecutionServiceFlowTests
         var traceEventRepository = new InMemoryTraceEventRepository();
         var stationRepository = new InMemoryStationRepository();
         var testFlowRepository = new InMemoryTestFlowRepository();
+        var spcRuleRepository = new InMemorySpcRuleRepository();
+        var alarmEventRepository = new InMemoryAlarmEventRepository();
         var service = new MesExecutionService(
             workOrderRepository,
             serialUnitRepository,
             testRecordRepository,
             traceEventRepository,
             stationRepository,
-            testFlowRepository);
+            testFlowRepository,
+            spcRuleRepository,
+            alarmEventRepository);
 
         await SeedFlowAsync(stationRepository, testFlowRepository);
         await workOrderRepository.AddAsync(new WorkOrder
